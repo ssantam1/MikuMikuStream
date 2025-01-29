@@ -51,7 +51,8 @@ async function checkStreams() {
       const wasLive = liveStatus.get(streamer) || false;
 
       if (isLive && !wasLive) {
-        sendNotification(streamer, streamData);
+        const streamerInfo = await getStreamerInfo(streamer);
+        sendNotification(streamer, streamData, streamerInfo);
       }
 
       liveStatus.set(streamer, isLive);
@@ -64,13 +65,37 @@ async function checkStreams() {
   }
 }
 
-function sendNotification(streamer, streamData) {
+async function getStreamerInfo(streamer) {
+  if (!twitchAccessToken) return;
+
+  try {
+    const response = await axios.get(
+      `https://api.twitch.tv/helix/users?login=${streamer}`,
+      {
+        headers: {
+          'Client-ID': TWITCH_CLIENT_ID,
+          'Authorization': `Bearer ${twitchAccessToken}`
+        }
+      }
+    );
+
+    return response.data.data[0];
+  } catch (error) {
+    if (error.response?.status === 401) {
+      await getTwitchToken();
+    }
+    console.error(`Error getting streamer info for ${streamer}:`, error.message);
+  }
+}
+
+function sendNotification(streamer, streamData, streamerInfo) {
   if (!notificationChannel) return;
 
   const embed = new EmbedBuilder()
-    .setTitle(`${streamer} is now live on Twitch!`)
+    .setTitle(`${streamData.user_name} is now live on Twitch!`)
     .setURL(`https://twitch.tv/${streamer}`)
     .setColor('#9146FF')
+    .setThumbnail(streamerInfo.profile_image_url)
     .addFields(
       { name: 'Title', value: streamData.title },
       { name: 'Game', value: streamData.game_name }
