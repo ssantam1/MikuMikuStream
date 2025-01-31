@@ -1,4 +1,6 @@
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 
@@ -6,6 +8,33 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 const CHECK_INTERVAL = 60000; // 60 seconds
+const DATA_FILE = path.join(__dirname, 'data.json');
+
+let twitchAccessToken = '';
+const trackedStreamers = new Set();
+const liveStatus = new Map();
+let notificationChannel = null;
+
+// Load saved data
+if (fs.existsSync(DATA_FILE)) {
+  const data = JSON.parse(fs.readFileSync(DATA_FILE));
+
+  if (data.trackedStreamers) {
+    data.trackedStreamers.forEach(streamer => trackedStreamers.add(streamer));
+  }
+
+  notificationChannel = data.notificationChannel;
+
+  console.log('Loaded saved data');
+}
+
+function saveData() {
+  const data = {
+    trackedStreamers: Array.from(trackedStreamers),
+    notificationChannel: notificationChannel
+  };
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+}
 
 const client = new Client({ 
   intents: [
@@ -13,11 +42,6 @@ const client = new Client({
     GatewayIntentBits.GuildMessages
   ] 
 });
-
-let twitchAccessToken = '';
-const trackedStreamers = new Set();
-const liveStatus = new Map();
-let notificationChannel = null;
 
 async function getTwitchToken() {
   try {
@@ -119,18 +143,21 @@ client.on('interactionCreate', async interaction => {
 
   if (commandName === 'setchannel') {
     notificationChannel = options.getChannel('channel');
+    saveData();
     await interaction.reply(`Notification channel set to ${notificationChannel}`);
   }
 
   if (commandName === 'addstreamer') {
     const streamer = options.getString('username').toLowerCase();
     trackedStreamers.add(streamer);
+    saveData();
     await interaction.reply(`Added ${streamer} to tracked streamers`);
   }
 
   if (commandName === 'removestreamer') {
     const streamer = options.getString('username').toLowerCase();
     trackedStreamers.delete(streamer);
+    saveData();
     await interaction.reply(`Removed ${streamer} from tracked streamers`);
   }
 });
