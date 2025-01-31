@@ -1,7 +1,7 @@
 require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+import * as fs from 'fs';
+import path from 'path';
+import { Client, GatewayIntentBits, EmbedBuilder, TextChannel } from 'discord.js';
 const axios = require('axios');
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -10,14 +10,26 @@ const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 const CHECK_INTERVAL = 60000; // 60 seconds
 const DATA_FILE = path.join(__dirname, 'data.json');
 
+const client = new Client({ 
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages
+  ] 
+});
+
 let twitchAccessToken = '';
-const trackedStreamers = new Set();
-const liveStatus = new Map();
-let notificationChannel = null;
+const trackedStreamers = new Set<string>();
+const liveStatus = new Map<string, boolean>();
+let notificationChannel: TextChannel | null = null;
+
+interface Data {
+  trackedStreamers: string[];
+  notificationChannel: TextChannel;
+}
 
 // Load saved data
 if (fs.existsSync(DATA_FILE)) {
-  const data = JSON.parse(fs.readFileSync(DATA_FILE));
+  const data: Data = JSON.parse(fs.readFileSync(DATA_FILE).toString());
 
   if (data.trackedStreamers) {
     data.trackedStreamers.forEach(streamer => trackedStreamers.add(streamer));
@@ -35,13 +47,6 @@ function saveData() {
   };
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
-
-const client = new Client({ 
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages
-  ] 
-});
 
 async function getTwitchToken() {
   try {
@@ -80,7 +85,7 @@ async function checkStreams() {
       }
 
       liveStatus.set(streamer, isLive);
-    } catch (error) {
+    } catch (error: any) {
       if (error.response?.status === 401) {
         await getTwitchToken();
       }
@@ -89,7 +94,7 @@ async function checkStreams() {
   }
 }
 
-async function getStreamerInfo(streamer) {
+async function getStreamerInfo(streamer: string) {
   if (!twitchAccessToken) return;
 
   try {
@@ -104,7 +109,7 @@ async function getStreamerInfo(streamer) {
     );
 
     return response.data.data[0];
-  } catch (error) {
+  } catch (error: any) {
     if (error.response?.status === 401) {
       await getTwitchToken();
     }
@@ -112,7 +117,7 @@ async function getStreamerInfo(streamer) {
   }
 }
 
-function sendNotification(streamer, streamData, streamerInfo) {
+function sendNotification(streamer: string, streamData: any, streamerInfo: any) {
   if (!notificationChannel) return;
 
   const embed = new EmbedBuilder()
@@ -131,7 +136,7 @@ function sendNotification(streamer, streamData, streamerInfo) {
 }
 
 client.once('ready', () => {
-  console.log(`Logged in as ${client.user.tag}!`);
+  console.log(`Logged in as ${client.user?.tag}!`);
   getTwitchToken();
   setInterval(checkStreams, CHECK_INTERVAL);
 });
@@ -148,15 +153,23 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (commandName === 'addstreamer') {
-    const streamer = options.getString('username').toLowerCase();
-    trackedStreamers.add(streamer);
+    const streamer = options.getString('username');
+    if(streamer === null) {
+      await interaction.reply('Please provide a username');
+      return;
+    }
+    trackedStreamers.add(streamer.toLowerCase());
     saveData();
     await interaction.reply(`Added ${streamer} to tracked streamers`);
   }
 
   if (commandName === 'removestreamer') {
-    const streamer = options.getString('username').toLowerCase();
-    trackedStreamers.delete(streamer);
+    const streamer = options.getString('username');
+    if(streamer === null) {
+      await interaction.reply('Please provide a username');
+      return;
+    }
+    trackedStreamers.delete(streamer.toLowerCase());
     saveData();
     await interaction.reply(`Removed ${streamer} from tracked streamers`);
   }
