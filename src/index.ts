@@ -24,7 +24,7 @@ let notificationChannel: TextChannel | null = null;
 
 interface Data {
   trackedStreamers: string[];
-  notificationChannel: TextChannel;
+  notificationChannel: string;
 }
 
 // Load saved data
@@ -35,7 +35,16 @@ if (fs.existsSync(DATA_FILE)) {
     data.trackedStreamers.forEach(streamer => trackedStreamers.add(streamer));
   }
 
-  notificationChannel = data.notificationChannel;
+  // Handle the promise properly
+  if (data.notificationChannel) {
+    client.channels.fetch(data.notificationChannel)
+      .then(channel => {
+        if (channel && channel instanceof TextChannel) {
+          notificationChannel = channel;
+        }
+      })
+      .catch(error => console.error('Error loading notification channel:', error));
+  }
 
   console.log('Loaded saved data');
 }
@@ -43,7 +52,7 @@ if (fs.existsSync(DATA_FILE)) {
 function saveData() {
   const data = {
     trackedStreamers: Array.from(trackedStreamers),
-    notificationChannel: notificationChannel
+    notificationChannel: notificationChannel?.id
   };
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
