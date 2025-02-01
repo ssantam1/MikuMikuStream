@@ -2,8 +2,7 @@ require('dotenv').config();
 import * as fs from 'fs';
 import path from 'path';
 import { Client, GatewayIntentBits, EmbedBuilder, TextChannel } from 'discord.js';
-import { log } from 'console';
-const axios = require('axios');
+import axios from 'axios';
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
