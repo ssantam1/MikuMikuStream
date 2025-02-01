@@ -20,6 +20,7 @@ const client = new Client({
 let twitchAccessToken = '';
 const trackedStreamers = new Set<string>();
 const liveStatus = new Map<string, boolean>();
+let notificationChannelId: string | null = null;
 let notificationChannel: TextChannel | null = null;
 
 interface Data {
@@ -35,15 +36,8 @@ if (fs.existsSync(DATA_FILE)) {
     data.trackedStreamers.forEach(streamer => trackedStreamers.add(streamer));
   }
 
-  // Handle the promise properly
   if (data.notificationChannel) {
-    client.channels.fetch(data.notificationChannel)
-      .then(channel => {
-        if (channel && channel instanceof TextChannel) {
-          notificationChannel = channel;
-        }
-      })
-      .catch(error => console.error('Error loading notification channel:', error));
+    notificationChannelId = data.notificationChannel;
   }
 
   console.log('Loaded saved data');
@@ -144,8 +138,12 @@ function sendNotification(streamer: string, streamData: any, streamerInfo: any) 
   notificationChannel.send({ embeds: [embed] });
 }
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`Logged in as ${client.user?.tag}!`);
+  if (notificationChannelId) {
+    console.log(`Fetching notificationChannel: ${notificationChannelId}`);
+    notificationChannel = await client.channels.fetch(notificationChannelId || '') as TextChannel | null;
+  }
   getTwitchToken();
   setInterval(checkStreams, CHECK_INTERVAL);
 });
