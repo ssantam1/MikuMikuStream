@@ -2,6 +2,7 @@ require('dotenv').config();
 import * as fs from 'fs';
 import path from 'path';
 import { Client, GatewayIntentBits, EmbedBuilder, TextChannel } from 'discord.js';
+import { log } from 'console';
 const axios = require('axios');
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -146,12 +147,15 @@ client.on('interactionCreate', async interaction => {
 
   const { commandName, options } = interaction;
 
+  // Set notification channel
   if (commandName === 'setchannel') {
     notificationChannel = options.getChannel('channel');
+    console.log(`Set notification channel to ${notificationChannel} - ${interaction.user.tag}`);
     saveData();
     await interaction.reply(`Notification channel set to ${notificationChannel}`);
   }
 
+  // Add streamer to track
   if (commandName === 'addstreamer') {
     const streamer = options.getString('username');
     if(streamer === null) {
@@ -159,16 +163,19 @@ client.on('interactionCreate', async interaction => {
       return;
     }
     trackedStreamers.add(streamer.toLowerCase());
+    console.log(`Added ${streamer} to tracked streamers - ${interaction.user.tag}`);
     saveData();
     await interaction.reply(`Added ${streamer} to tracked streamers`);
   }
 
+  // Remove tracked streamer
   if (commandName === 'removestreamer') {
     const streamer = options.getString('username');
     if(streamer === null) {
       await interaction.reply('Please provide a username');
       return;
     }
+    console.log(`Removed ${streamer} from tracked streamers - ${interaction.user.tag}`);
     trackedStreamers.delete(streamer.toLowerCase());
     saveData();
     await interaction.reply(`Removed ${streamer} from tracked streamers`);
