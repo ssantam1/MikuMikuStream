@@ -1,14 +1,15 @@
-import * as fs from 'fs';
-import path from 'path';
-import 'dotenv/config';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
+
 import axios from 'axios';
 import { Client, GatewayIntentBits, EmbedBuilder, TextChannel } from 'discord.js';
+import 'dotenv/config';
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 const CHECK_INTERVAL = 60000; // 60 seconds
-const DATA_FILE = path.resolve('./data.json');
+const DATA_FILE = resolve('./data.json');
 
 const client = new Client({ 
   intents: [
@@ -29,8 +30,8 @@ interface Data {
 }
 
 // Load saved data
-if (fs.existsSync(DATA_FILE)) {
-  const data: Data = JSON.parse(fs.readFileSync(DATA_FILE).toString());
+if (existsSync(DATA_FILE)) {
+  const data: Data = JSON.parse(readFileSync(DATA_FILE).toString());
 
   if (data.trackedStreamers) {
     data.trackedStreamers.forEach(streamer => trackedStreamers.add(streamer));
@@ -48,7 +49,7 @@ function saveData() {
     trackedStreamers: Array.from(trackedStreamers),
     notificationChannel: notificationChannel?.id
   };
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
 async function getTwitchToken() {
