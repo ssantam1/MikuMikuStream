@@ -1,15 +1,12 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
-
 import axios from 'axios';
 import { Client, GatewayIntentBits, EmbedBuilder, TextChannel } from 'discord.js';
 import 'dotenv/config';
+import { loadData, saveData, Data } from './storage.js';
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 const CHECK_INTERVAL = 60000; // 60 seconds
-const DATA_FILE = resolve('./data.json');
 
 const client = new Client({ 
   intents: [
@@ -19,38 +16,11 @@ const client = new Client({
 });
 
 let twitchAccessToken = '';
-const trackedStreamers = new Set<string>();
 const liveStatus = new Map<string, boolean>();
-let notificationChannelId: string | null = null;
 let notificationChannel: TextChannel | null = null;
 
-interface Data {
-  trackedStreamers: string[];
-  notificationChannel: string;
-}
-
-// Load saved data
-if (existsSync(DATA_FILE)) {
-  const data: Data = JSON.parse(readFileSync(DATA_FILE).toString());
-
-  if (data.trackedStreamers) {
-    data.trackedStreamers.forEach(streamer => trackedStreamers.add(streamer));
-  }
-
-  if (data.notificationChannel) {
-    notificationChannelId = data.notificationChannel;
-  }
-
-  console.log('Loaded saved data');
-}
-
-function saveData() {
-  const data = {
-    trackedStreamers: Array.from(trackedStreamers),
-    notificationChannel: notificationChannel?.id
-  };
-  writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-}
+const data: Data = loadData();
+console.log(data);
 
 async function getTwitchToken() {
   try {
@@ -67,7 +37,7 @@ async function getTwitchToken() {
 async function checkStreams() {
   if (!twitchAccessToken) return;
 
-  for (const streamer of trackedStreamers) {
+  for (const streamer of data.trackedStreamers) {
     try {
       const response = await axios.get(
         `https://api.twitch.tv/helix/streams?user_login=${streamer}`,
@@ -141,9 +111,9 @@ function sendNotification(streamer: string, streamData: any, streamerInfo: any) 
 
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user?.tag}!`);
-  if (notificationChannelId) {
-    console.log(`Fetching notificationChannel: ${notificationChannelId}`);
-    notificationChannel = await client.channels.fetch(notificationChannelId || '') as TextChannel | null;
+  if (data.notificationChannelId) {
+    console.log(`Fetching notificationChannel: ${data.notificationChannelId}`);
+    notificationChannel = await client.channels.fetch(data.notificationChannelId || '') as TextChannel | null;
   }
   getTwitchToken();
   setInterval(checkStreams, CHECK_INTERVAL);
@@ -158,7 +128,8 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'setchannel') {
     notificationChannel = options.getChannel('channel');
     console.log(`Set notification channel to ${notificationChannel} - ${interaction.user.tag}`);
-    saveData();
+    data.notificationChannelId = notificationChannel?.id || null;
+    saveData(data);
     await interaction.reply(`Notification channel set to ${notificationChannel}`);
   }
 
@@ -169,9 +140,10 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply('Please provide a username');
       return;
     }
-    trackedStreamers.add(streamer.toLowerCase());
+    data.trackedStreamers.add(streamer.toLowerCase());
     console.log(`Added ${streamer} to tracked streamers - ${interaction.user.tag}`);
-    saveData();
+    console.log(data);
+    saveData(data);
     await interaction.reply(`Added ${streamer} to tracked streamers`);
   }
 
@@ -183,8 +155,8 @@ client.on('interactionCreate', async interaction => {
       return;
     }
     console.log(`Removed ${streamer} from tracked streamers - ${interaction.user.tag}`);
-    trackedStreamers.delete(streamer.toLowerCase());
-    saveData();
+    data.trackedStreamers.delete(streamer.toLowerCase());
+    saveData(data);
     await interaction.reply(`Removed ${streamer} from tracked streamers`);
   }
 });
