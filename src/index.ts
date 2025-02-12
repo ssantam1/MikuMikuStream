@@ -15,7 +15,7 @@ const client = new Client({
   ] 
 });
 
-let twitchAccessToken = '';
+let twitchAccessToken: string | null = null;
 const liveStatus = new Map<string, boolean>();
 let notificationChannel: TextChannel | null = null;
 
@@ -34,61 +34,46 @@ async function getTwitchToken(): Promise<string | void> {
   }
 }
 
-async function checkStreams() {
-  if (!twitchAccessToken) return;
-
-  for (const streamer of data.trackedStreamers) {
-    try {
-      const response = await axios.get(
-        `https://api.twitch.tv/helix/streams?user_login=${streamer}`,
-        {
-          headers: {
-            'Client-ID': TWITCH_CLIENT_ID,
-            'Authorization': `Bearer ${twitchAccessToken}`
-          }
-        }
-      );
-
-      const streamData = response.data.data[0];
-      const isLive = streamData?.type === 'live';
-      const wasLive = liveStatus.get(streamer) || false;
-
-      if (isLive && !wasLive) {
-        const streamerInfo = await getStreamerInfo(streamer);
-        sendNotification(streamer, streamData, streamerInfo);
-      }
-
-      liveStatus.set(streamer, isLive);
-    } catch (error: any) {
-      if (error.response?.status === 401) {
-        twitchAccessToken = (await getTwitchToken()) || twitchAccessToken;
-      }
-      console.error(`Error checking ${streamer}:`, error.message);
-    }
-  }
-}
-
-async function getStreamerInfo(streamer: string) {
+async function twitchApiGet(url: string): Promise<any> {
   if (!twitchAccessToken) return;
 
   try {
-    const response = await axios.get(
-      `https://api.twitch.tv/helix/users?login=${streamer}`,
-      {
-        headers: {
-          'Client-ID': TWITCH_CLIENT_ID,
-          'Authorization': `Bearer ${twitchAccessToken}`
-        }
+    const response = await axios.get(url, {
+      headers: {
+        'Client-ID': TWITCH_CLIENT_ID,
+        'Authorization': `Bearer ${twitchAccessToken}`
       }
-    );
-
-    return response.data.data[0];
-  } catch (error: any) {
+    });
+    return response;
+  }
+  catch (error: any) {
     if (error.response?.status === 401) {
       twitchAccessToken = (await getTwitchToken()) || twitchAccessToken;
     }
-    console.error(`Error getting streamer info for ${streamer}:`, error.message);
+    console.error('Error calling Twitch API:', error.message);
   }
+}
+
+async function checkStreams(): Promise<void> {
+  for (const streamer of data.trackedStreamers) {
+    const response = await twitchApiGet(`https://api.twitch.tv/helix/streams?user_login=${streamer}`);
+
+    const streamData = response.data.data[0];
+    const isLive = streamData?.type === 'live';
+    const wasLive = liveStatus.get(streamer) || false;
+
+    if (isLive && !wasLive) {
+      const streamerInfo = await getStreamerInfo(streamer);
+      sendNotification(streamer, streamData, streamerInfo);
+    }
+
+    liveStatus.set(streamer, isLive);
+  }
+}
+
+async function getStreamerInfo(streamer: string): Promise<any> {
+  const response = await twitchApiGet(`https://api.twitch.tv/helix/users?login=${streamer}`);
+  return response.data.data[0];
 }
 
 function sendNotification(streamer: string, streamData: any, streamerInfo: any) {
