@@ -22,13 +22,13 @@ let notificationChannel: TextChannel | null = null;
 const data: Data = loadData();
 console.log(data);
 
-async function getTwitchToken() {
+async function getTwitchToken(): Promise<string | void> {
   try {
     const response = await axios.post(
       `https://id.twitch.tv/oauth2/token`,
       `client_id=${TWITCH_CLIENT_ID}&client_secret=${TWITCH_CLIENT_SECRET}&grant_type=client_credentials`
     );
-    twitchAccessToken = response.data.access_token;
+    return response.data.access_token;
   } catch (error) {
     console.error('Error getting Twitch token:', error);
   }
@@ -61,7 +61,7 @@ async function checkStreams() {
       liveStatus.set(streamer, isLive);
     } catch (error: any) {
       if (error.response?.status === 401) {
-        await getTwitchToken();
+        twitchAccessToken = (await getTwitchToken()) || twitchAccessToken;
       }
       console.error(`Error checking ${streamer}:`, error.message);
     }
@@ -85,7 +85,7 @@ async function getStreamerInfo(streamer: string) {
     return response.data.data[0];
   } catch (error: any) {
     if (error.response?.status === 401) {
-      await getTwitchToken();
+      twitchAccessToken = (await getTwitchToken()) || twitchAccessToken;
     }
     console.error(`Error getting streamer info for ${streamer}:`, error.message);
   }
@@ -115,7 +115,7 @@ client.once('ready', async () => {
     console.log(`Fetching notificationChannel: ${data.notificationChannelId}`);
     notificationChannel = await client.channels.fetch(data.notificationChannelId || '') as TextChannel | null;
   }
-  getTwitchToken();
+  twitchAccessToken = (await getTwitchToken()) || '';
   setInterval(checkStreams, CHECK_INTERVAL);
 });
 
