@@ -10,7 +10,11 @@ const DATA_FILE = resolve('./data.json');
 
 export function loadData(): Data {
   if (existsSync(DATA_FILE)) {
-    return JSON.parse(readFileSync(DATA_FILE).toString());
+    const rawData = JSON.parse(readFileSync(DATA_FILE).toString());
+    return {
+      trackedStreamers: new Set(rawData.trackedStreamers),
+      notificationChannelId: rawData.notificationChannelId
+    };
   }
   return {
     trackedStreamers: new Set<string>(),
@@ -19,5 +23,8 @@ export function loadData(): Data {
 }
 
 export function saveData(data: Data): void {
-  writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  writeFileSync(DATA_FILE, JSON.stringify({
+    trackedStreamers: Array.from(data.trackedStreamers),
+    notificationChannelId: data.notificationChannelId
+  }, null, 2));
 }
