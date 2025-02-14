@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import { Client, GatewayIntentBits, EmbedBuilder, TextChannel } from 'discord.js';
 import 'dotenv/config';
 import { loadData, saveData, Data } from './storage.js';
@@ -22,7 +22,7 @@ let notificationChannel: TextChannel | null = null;
 const data: Data = loadData();
 console.log(data);
 
-async function getTwitchToken(): Promise<string | void> {
+async function getTwitchToken(): Promise<string | undefined> {
   try {
     const response = await axios.post(
       `https://id.twitch.tv/oauth2/token`,
@@ -31,14 +31,15 @@ async function getTwitchToken(): Promise<string | void> {
     return response.data.access_token;
   } catch (error) {
     console.error('Error getting Twitch token:', error);
+    return undefined;
   }
 }
 
-async function twitchApiGet(url: string): Promise<any> {
-  if (!twitchAccessToken) return;
+async function twitchApiGet<T>(url: string): Promise<AxiosResponse<T> | undefined> {
+  if (!twitchAccessToken) return undefined;
 
   try {
-    const response = await axios.get(url, {
+    const response: AxiosResponse<T> = await axios.get(url, {
       headers: {
         'Client-ID': TWITCH_CLIENT_ID,
         'Authorization': `Bearer ${twitchAccessToken}`
@@ -51,13 +52,27 @@ async function twitchApiGet(url: string): Promise<any> {
       twitchAccessToken = (await getTwitchToken()) || twitchAccessToken;
     }
     console.error('Error calling Twitch API:', error.message);
+    return undefined;
   }
+}
+
+interface TwitchStream {
+  user_name: string;
+  type: string;
+  title: string;
+  game_name: string;
+  thumbnail_url: string;
+}
+
+interface TwitchStreamsResponse {
+  data: TwitchStream[];
 }
 
 async function checkStreams(): Promise<void> {
   for (const streamer of data.trackedStreamers) {
-    const response = await twitchApiGet(`https://api.twitch.tv/helix/streams?user_login=${streamer}`);
-
+    const response = await twitchApiGet<TwitchStreamsResponse>(`https://api.twitch.tv/helix/streams?user_login=${streamer}`);
+    if (!response) continue;
+    
     const streamData = response.data.data[0];
     const isLive = streamData?.type === 'live';
     const wasLive = liveStatus.get(streamer) || false;
@@ -71,9 +86,19 @@ async function checkStreams(): Promise<void> {
   }
 }
 
+interface TwitchUser {
+  id: string;
+  login: string;
+  profile_image_url: string;
+}
+
+interface TwitchUsersResponse {
+  data: TwitchUser[];
+}
+
 async function getStreamerInfo(streamer: string): Promise<any> {
-  const response = await twitchApiGet(`https://api.twitch.tv/helix/users?login=${streamer}`);
-  return response.data.data[0];
+  const response = await twitchApiGet<TwitchUsersResponse>(`https://api.twitch.tv/helix/users?login=${streamer}`);
+  return response?.data.data[0];
 }
 
 function sendNotification(streamer: string, streamData: any, streamerInfo: any) {
