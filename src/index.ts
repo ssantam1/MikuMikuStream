@@ -2,6 +2,7 @@ import axios, { AxiosResponse } from 'axios';
 import { Client, GatewayIntentBits, EmbedBuilder, TextChannel } from 'discord.js';
 import 'dotenv/config';
 import { loadData, saveData, Data } from './storage.js';
+import { TwitchStreamsResponse, TwitchUsersResponse } from './types.js';
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
@@ -56,18 +57,6 @@ async function twitchApiGet<T>(url: string): Promise<AxiosResponse<T> | undefine
   }
 }
 
-interface TwitchStream {
-  user_name: string;
-  type: string;
-  title: string;
-  game_name: string;
-  thumbnail_url: string;
-}
-
-interface TwitchStreamsResponse {
-  data: TwitchStream[];
-}
-
 async function checkStreams(): Promise<void> {
   for (const streamer of data.trackedStreamers) {
     const response = await twitchApiGet<TwitchStreamsResponse>(`https://api.twitch.tv/helix/streams?user_login=${streamer}`);
@@ -84,16 +73,6 @@ async function checkStreams(): Promise<void> {
 
     liveStatus.set(streamer, isLive);
   }
-}
-
-interface TwitchUser {
-  id: string;
-  login: string;
-  profile_image_url: string;
-}
-
-interface TwitchUsersResponse {
-  data: TwitchUser[];
 }
 
 async function getStreamerInfo(streamer: string): Promise<any> {
